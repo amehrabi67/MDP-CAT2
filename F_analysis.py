@@ -227,8 +227,15 @@ def plot_exposure_bars(exposure_series_dict: dict,
     ----------
     exposure_series_dict : {method_name: pd.Series of exposure rates}
     """
+    # Include any method present in the dict, not just ORDERED_METHODS
+    # This handles name mismatches between condition file stems and ORDERED_METHODS
     methods = [m for m in ORDERED_METHODS if m in exposure_series_dict]
+    if not methods:                          # fallback: use all keys as-is
+        methods = list(exposure_series_dict.keys())
     n       = len(methods)
+    if n == 0:
+        print("[plot_exposure_bars] No methods to plot — skipping.")
+        return ''
     ideal   = 1.0 / n_items
 
     fig, axes = plt.subplots(1, n, figsize=(4.5 * n, 4), sharey=False)
@@ -522,13 +529,34 @@ def run_full_analysis(results_dir: str = './results',
     exposure_all     = {}
     exp_stats_list   = []
 
+    # ── Method name display mapping ──────────────────────────────────────────
+    # run_all.py sanitises names: '+' → 'plus', '-' preserved in some places.
+    # Map file-stem method fragments back to display names used in STYLE dict.
+    _name_map = {
+        'random':             'Random',
+        'mfi':                'MFI',
+        'mfipluswle':         'MFI+WLE',
+        'kl-l':               'KL-L',
+        'kll':                'KL-L',
+        'a-strat':            'a-Strat(K=4)',
+        'astrat':             'a-Strat(K=4)',
+        'dqn-mse':            'DQN-MSE',
+        'dqn_mse':            'DQN-MSE',
+        'dqn-huber':          'DQN-Huber',
+        'dqn_huber':          'DQN-Huber',
+        'dqn-huberpluspocar': 'DQN-Huber+POCAR',
+        'dqn_huberpluspocar': 'DQN-Huber+POCAR',
+        'dqn-huber+pocar':    'DQN-Huber+POCAR',
+    }
+
     for csv_path in sorted(csv_files):
         cname  = csv_path.stem  # filename without .csv
         df     = pd.read_csv(csv_path)
         parts  = cname.split('_', 2)
         bank   = parts[0] if len(parts) > 0 else 'unknown'
         prior  = parts[1] if len(parts) > 1 else 'unknown'
-        method = parts[2] if len(parts) > 2 else cname
+        raw_method = parts[2] if len(parts) > 2 else cname
+        method = _name_map.get(raw_method.lower(), raw_method)
 
         # Step metrics
         stats_df = step_metrics(df, method)
